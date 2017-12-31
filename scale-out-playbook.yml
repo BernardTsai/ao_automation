@@ -1,0 +1,195 @@
+---
+- name:         VNF Cluster Scale Out
+  hosts:        localhost
+  gather_facts: no
+  become:       no
+  connection:   local
+
+  # ----- VARS -----------------------------------------------------------------
+
+  vars:
+    vnf:         "unknown"
+    cluster:     "unknown"
+    repo_prefix: "https://raw.githubusercontent.com/BernardTsai/applications/master"
+
+  # ----- TASKS ----------------------------------------------------------------
+
+  tasks:
+  - name: Create Task UUID
+    set_fact:
+      uuid: "{{ 1000000000 | random | to_uuid }}"
+
+  - name: Load VNF Cluster Descriptor
+    uri:
+      url:            "{{repo_prefix}}/{{vnf}}/{{cluster}}/descriptor.yml"
+      validate_certs: no
+      return_content: yes
+    ignore_errors: yes
+    changed_when:  false
+    register:      descriptor
+
+  - name: Validating VNF Descriptor
+    fail:
+      msg: "Unable to load descriptor"
+    when: descriptor.status != 200
+    changed_when: false
+
+  - name: Load VNF Credentials
+    set_fact:
+      vnfd: "{{ descriptor.content | from_yaml }}"
+
+  - name: Load Cloud Credentials
+    set_fact:
+      cloud: "{{ clouds.get( vnfd.tenant.cloud ) }}"
+
+  - name: Create Customer clouds.yml Configuration
+    template:
+      src:  clouds.yml.j2
+      dest: "/tmp/{{uuid}}.yml"
+    changed_when: false
+
+  - name: Check Connectivity
+    wait_for:
+      host: "{{ cloud.auth.auth_url | urlsplit('hostname') }}"
+      port: "{{ cloud.auth.auth_url | urlsplit('port') }}"
+      timeout: 5
+      msg: "Unable to connect to Cloud API"
+
+  - name: Calculate Placement (may take some time)
+    script: ./scripts/placement.py
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+      OS_CLOUD:              "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      OS_VNF_NAME:           "{{vnfd.vnf.name}}"
+      OS_PROJECT_NAME:       "{{vnfd.tenant.name}}"
+      OS_CLUSTER_NAME:       "{{vnfd.cluster.name}}"
+    register: data
+    changed_when: false
+
+  - name: Load Placement
+    set_fact:
+      placement: "{{ data.stdout | from_yaml }}"
+
+  # ----- Ports ----------------------------------------------------------------
+
+  - name: Create Ports
+    os_port:
+      cloud:   "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      state:   present
+      name:    "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.network}}"
+      network: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{item.network}}"
+      security_groups:
+      - "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{item.network}}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{vnfd.cluster.ports}}"
+    async: 3600
+    poll: 0
+    register: port_results
+
+  - name: Wait for Ports
+    async_status:
+      jid: "{{async_result_item.ansible_job_id}}"
+    with_items: "{{port_results.results}}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until:    async_poll_results.finished
+    retries:  30
+
+  # ----- Nodes ----------------------------------------------------------------
+
+  - name: Define Port Names
+    set_fact:
+      data:
+        port-name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.network}}"
+    with_items: "{{vnfd.cluster.ports}}"
+    register: portnames
+
+  - name: Define Ports
+    set_fact:
+      ports: "{{portnames|json_query('results[*].ansible_facts.data')}}"
+
+  - name: Create Node
+    os_server:
+      cloud:             "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      state:             present
+      name:              "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}"
+      availability_zone: "{{item.zone}}"
+      flavor:            "{{item.flavor}}"
+      image:             "{{item.image}}"
+      key_name:          "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_keypair"
+      nics:              "{{ports}}"
+      auto_ip:           no
+      security_groups:
+      - default
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{vnfd.cluster}}"
+    async:     3600
+    poll:      0
+    register: node_results
+
+  - name: Wait for Nodes
+    async_status:
+      jid: "{{async_result_item.ansible_job_id}}"
+    with_items: "{{node_results.results}}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until:    async_poll_results.finished
+    retries:  30
+
+  # ----- Volumes --------------------------------------------------------------
+
+  - name: Create Volumes
+    os_volume:
+      cloud:        "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      state:        present
+      volume_type:  "{{item.type}}"
+      size:         "{{item.size}}"
+      display_name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name }}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.name}}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{vnfd.cluster.volumes}}"
+    async:    3600
+    poll:     0
+    register: volume_results
+
+  - name: Wait for Volumes
+    async_status:
+      jid: "{{async_result_item.ansible_job_id}}"
+    with_items: "{{volume_results.results}}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until:    async_poll_results.finished
+    retries:  30
+
+  - name: Create Attachments
+    os_server_volume:
+      cloud:  "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      state:  present
+      server: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}"
+      volume: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.name}}"
+      device: "{{item.device}}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{vnfd.cluster.volumes}}"
+    async:    3600
+    poll:     0
+    register: attachment_results
+
+  - name: Wait for Attachments
+    async_status:
+      jid: "{{async_result_item.ansible_job_id}}"
+    with_items: "{{attachment_results.results}}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until:    async_poll_results.finished
+    retries:  30

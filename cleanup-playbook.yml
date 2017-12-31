@@ -1,0 +1,62 @@
+---
+- name:         VNF Cleanup
+  hosts:        localhost
+  gather_facts: no
+  become:       no
+  connection:   local
+
+  # ----- VARS -----------------------------------------------------------------
+
+  vars:
+    vnf:         "unknown"
+    repo_prefix: "https://raw.githubusercontent.com/BernardTsai/applications/master"
+
+  # ----- TASKS ----------------------------------------------------------------
+
+  tasks:
+  - name: Create Task UUID
+    set_fact:
+      uuid: "{{ 1000000000 | random | to_uuid }}"
+
+  - name: Load VNF Descriptor
+    uri:
+      url:            "{{repo_prefix}}/{{vnf}}/descriptor.yml"
+      validate_certs: no
+      return_content: yes
+    ignore_errors: yes
+    changed_when:  false
+    register:      descriptor
+
+  - name: Validating VNF Descriptor
+    fail:
+      msg: "Unable to load descriptor"
+    when: descriptor.status != 200
+    changed_when: false
+
+  - name: Load VNF Credentials
+    set_fact:
+      vnfd: "{{ descriptor.content | from_yaml }}"
+
+  - name: Load Cloud Credentials
+    set_fact:
+      cloud: "{{ clouds.get( vnfd.tenant.cloud ) }}"
+
+  - name: Check Connectivity
+    wait_for:
+      host: "{{ cloud.auth.auth_url | urlsplit('hostname') }}"
+      port: "{{ cloud.auth.auth_url | urlsplit('port') }}"
+      timeout: 1
+      msg: "Unable to connect to Cloud API"
+
+  - name: Cleanup Tenant (may take some time)
+    script: ./scripts/cleanup.sh
+    environment:
+      OS_AUTH_URL:     "{{cloud.auth.auth_url}}"
+      OS_USERNAME:     "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_administrator"
+      OS_PASSWORD:     "{{vnfd.tenant.password}}"
+      OS_PROJECT_NAME: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+    register: result
+
+  - name: Dislay Cleanup Log
+    debug:
+      var: result.stdout

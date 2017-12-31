@@ -1,0 +1,381 @@
+---
+- name:         VNF Deployment
+  hosts:        localhost
+  gather_facts: no
+  become:       no
+  connection:   local
+  
+  # ----- VARS -----------------------------------------------------------------
+
+  vars:
+    vnf:         "unknown"
+    repo_prefix: "https://raw.githubusercontent.com/BernardTsai/applications/master"
+
+# ----- TASKS ----------------------------------------------------------------
+
+  tasks:
+  - name: Create Task UUID
+    set_fact:
+      uuid: "{{ 1000000000 | random | to_uuid }}"
+
+  - name: Load VNF Descriptor
+    uri:
+      url:            "{{repo_prefix}}/{{vnf}}/descriptor.yml"
+      validate_certs: no
+      return_content: yes
+    ignore_errors: yes
+    changed_when:  false
+    register:      descriptor
+
+  - name: Validating VNF Descriptor
+    fail:
+      msg: "Unable to load descriptor"
+    when: descriptor.status != 200
+    changed_when: false
+
+  - name: Load VNF Credentials
+    set_fact:
+      vnfd: "{{ descriptor.content | from_yaml }}"
+
+  - name: Load Cloud Credentials
+    set_fact:
+      cloud: "{{ clouds.get( vnfd.tenant.cloud ) }}"
+
+  - name: Create Customer clouds.yml Configuration
+    template:
+      src:  clouds.yml.j2
+      dest: "/tmp/{{uuid}}.yml"
+    changed_when: false
+
+  - name: Check Connectivity
+    wait_for:
+      host: "{{ cloud.auth.auth_url | urlsplit('hostname') }}"
+      port: "{{ cloud.auth.auth_url | urlsplit('port') }}"
+      timeout: 5
+      msg: "Unable to connect to Cloud API"
+    
+  - name: Create Project
+    os_project:
+      cloud:         "{{ vnfd.tenant.cloud }}"
+      endpoint_type: admin
+      name:          "{{ vnfd.tenant.name }}"
+      description:   "{{ vnfd.tenant.description }}"
+      enabled:       True
+      state:         present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    register: os_project
+
+  - name: Create Administrator
+    os_user:
+      cloud:           "{{ vnfd.tenant.cloud }}"
+      endpoint_type:   admin
+      name:            "{{ vnfd.tenant.name }}_administrator"
+      password:        "{{ vnfd.tenant.password }}"
+      state:           present
+      default_project: "{{ vnfd.tenant.name }}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+
+  - name: Grant Administrator Privileges
+    os_user_role:
+      cloud:           "{{ vnfd.tenant.cloud }}"
+      endpoint_type:   admin
+      user:            "{{ vnfd.tenant.name }}_administrator"
+      role:            Member
+      project:         "{{ vnfd.tenant.name }}"
+      state:           present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+
+  - name: Create Key
+    shell:
+      cmd: ssh-keygen -b 2048 -t rsa -N "" -q -f /tmp/{{vnfd.tenant.name}}.key
+      creates: /tmp/{{vnfd.tenant.name}}.key
+
+  - name: Add Key to Administrator Account
+    os_keypair:
+      cloud:      "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      name:       "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_keypair"
+      public_key: "{{vnfd.tenant.public_key}}"
+      state:      present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+
+  # ----- SECURITY GROUPS ------------------------------------------------------
+
+  - name: Create Security Groups
+    os_security_group:
+      cloud: "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      name:  "{{ item }}"
+      state: present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+      - "{{ vnfd.security_groups }}"
+    async: 3600
+    poll: 0
+    register: security_group_results
+
+  - name: Wait for Security Groups
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ security_group_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+    when: async_result_item.ansible_job_id is defined
+
+  # ----- SECURITY GROUP RULES -------------------------------------------------
+
+  - name: Create External Security Group Rules
+    os_security_group_rule:
+      cloud:            "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      security_group:   "{{ item.group}}"
+      direction:        "{{ item.direction}}"
+      protocol:         "{{ item.protocol}}"
+      port_range_min:   "{{ item.min}}"
+      port_range_max:   "{{ item.max}}"
+      remote_ip_prefix: "{{ item.remote_ip_prefix}}"
+      state:            present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.external_security_group_rules }}"
+    async: 3600
+    poll: 0
+    register: external_security_group_rules_results
+
+  - name: Wait for External Security Group Rules
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ external_security_group_rules_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+    when: async_result_item.ansible_job_id is defined
+
+  - name: Create Internal Security Group Rules
+    os_security_group_rule:
+      cloud:            "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      direction:        "{{ item.direction}}"
+      security_group:   "{{ item.group}}"
+      protocol:         "{{ item.protocol}}"
+      port_range_min:   "{{ item.min}}"
+      port_range_max:   "{{ item.max}}"
+      remote_group:     "{{ item.remote_group}}"
+      state:            present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.internal_security_group_rules }}"
+    async: 3600
+    poll: 0
+    register: internal_security_group_rules_results
+
+  - name: Wait for Internal Security Group Rules
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ internal_security_group_rules_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+    when: async_result_item.ansible_job_id is defined
+
+  # ----- NETWORKS -------------------------------------------------------------
+
+  - name: Create Networks
+    os_network:
+      cloud:    "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      name:     "{{ item.name }}"
+      state:    present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.networks }}"
+    async: 3600
+    poll: 0
+    register: network_results
+
+  - name: Wait for Networks
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ network_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+
+  - name: Create IPv4 Subnets
+    os_subnet:
+      cloud:        "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      network_name: "{{ item.name }}"
+      name:         "{{ item.name }}_ipv4"
+      ip_version:   4
+      cidr:         "{{ item.ipv4.cidr }}"
+      state:        present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.networks }}"
+    when: item.ipv4 is defined
+    async: 3600
+    poll: 0
+    register: ipv4subnet_results
+
+  - name: Wait for IPv4 Subnets
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ ipv4subnet_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+    when: async_result_item.ansible_job_id is defined
+
+  - name: Create IPv6 Subnets
+    os_subnet:
+      cloud:        "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      network_name: "{{ item.name }}"
+      name:         "{{ item.name }}_ipv4"
+      ip_version:   6
+      cidr:         "{{ item.ipv6.cidr }}"
+      state:        present
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.networks }}"
+    when: item.ipv6 is defined and phase >= 3
+    async: 3600
+    poll: 0
+    register: ipv6subnet_results
+
+  - name: Wait for IPv6 Subnets
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ ipv6subnet_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+    when: async_result_item.ansible_job_id is defined
+
+  # ----- Ports ----------------------------------------------------------------
+
+  - name: Create Ports
+    os_port:
+      cloud:   "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      state:   present
+      name:    "{{ item.name }}"
+      network: "{{ item.network }}"
+      security_groups:
+      - "{{ item.security_group }}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.ports }}"
+    async: 3600
+    poll: 0
+    register: port_results
+
+  - name: Wait for Ports
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ port_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+
+  # ----- Nodes ----------------------------------------------------------------
+
+  - name: Create Nodes
+    os_server:
+      cloud:             "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      state:             present
+      name:              "{{ item.name }}"
+      availability_zone: "{{ item.availability_zone }}"
+      flavor:            "{{ item.flavor }}"
+      image:             "{{ item.image }}"
+      key_name:          "{{ item.key_name }}"
+      nics:              "{{ item.nics }}"
+      auto_ip:           no
+      security_groups:
+      - default
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.nodes }}"
+    async: 3600
+    poll: 0
+    register: node_results
+
+  - name: Wait for Nodes
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ node_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+
+  - name: Create Volumes
+    os_volume:
+      cloud:        "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      state:        present
+      volume_type:  "{{ item.volume_type }}"
+      size:         "{{ item.size }}"
+      display_name: "{{ item.name }}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.volumes }}"
+    async: 3600
+    poll: 0
+    register: volume_results
+
+  - name: Wait for Volumes
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ volume_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
+
+  - name: Create Attachments
+    os_server_volume:
+      cloud:  "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      state:  present
+      server: "{{ item.server }}"
+      volume: "{{ item.name }}"
+      device: "{{ item.device }}"
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+    with_items:
+    - "{{ vnfd.volumes }}"
+    async: 3600
+    poll: 0
+    register: attachment_results
+
+  - name: Wait for Attachments
+    async_status:
+      jid: "{{ async_result_item.ansible_job_id }}"
+    with_items: "{{ attachment_results.results }}"
+    loop_control:
+      loop_var: "async_result_item"
+    register: async_poll_results
+    until: async_poll_results.finished
+    retries: 30
