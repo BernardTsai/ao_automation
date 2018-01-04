@@ -8,8 +8,8 @@
   # ----- VARS -----------------------------------------------------------------
 
   vars:
-    vnf:         "unknown"
-    repo_prefix: "https://raw.githubusercontent.com/BernardTsai/applications/master"
+    vnf:         "example"
+    repo_prefix: "http://gitlab/Applications"
 
   # ----- TASKS ----------------------------------------------------------------
 
@@ -20,7 +20,7 @@
 
   - name: Load VNF Descriptor
     uri:
-      url:            "{{repo_prefix}}/{{vnf}}/descriptor.yml"
+      url:            "{{repo_prefix}}/{{vnf}}/raw/master/playbook_parameters.yml"
       validate_certs: no
       return_content: yes
     ignore_errors: yes

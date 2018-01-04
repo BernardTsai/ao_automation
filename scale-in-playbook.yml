@@ -8,10 +8,10 @@
   # ----- VARS -----------------------------------------------------------------
 
   vars:
-    vnf:         "unknown"
-    cluster:     "unknown"
-    node:        "unknwon"
-    repo_prefix: "https://raw.githubusercontent.com/BernardTsai/applications/master"
+    vnf:         "example"
+    cluster:     "ellis"
+    node:        "0"
+    repo_prefix: "http://gitlab/Applications"
 
   # ----- TASKS ----------------------------------------------------------------
 
@@ -22,7 +22,7 @@
 
   - name: Load VNF Cluster Descriptor
     uri:
-      url:            "{{repo_prefix}}/{{vnf}}/{{cluster}}/descriptor.yml"
+      url:            "{{repo_prefix}}/{{vnf}}/raw/master/playbook_parameters.yml"
       validate_certs: no
       return_content: yes
     ignore_errors: yes
@@ -179,4 +179,3 @@
     register: async_poll_results
     until:    async_poll_results.finished
     retries:  30
-
