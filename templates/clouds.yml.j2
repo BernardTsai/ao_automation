@@ -10,8 +10,8 @@ clouds:
   {{vnfd.tenant.name}}:
     auth:
       auth_url:     "{{cloud.auth.auth_url}}"
-      username:     "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_administrator"
+      username:     "{{vnfd.tenant.name}}_administrator"
       password:     "{{vnfd.tenant.password}}"
-      project_name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      project_name: "{{vnfd.tenant.name}}"
     interface:     "public"
     endpoint-type: "public"
