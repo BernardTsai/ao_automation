@@ -59,7 +59,7 @@
     script: ./scripts/placement.py
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
-      OS_CLOUD:              "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      OS_CLOUD:              "{{vnfd.tenant.name}}"
       OS_VNF_NAME:           "{{vnfd.vnf.name}}"
       OS_PROJECT_NAME:       "{{vnfd.tenant.name}}"
       OS_CLUSTER_NAME:       "{{vnfd.cluster.name}}"
@@ -74,12 +74,12 @@
 
   - name: Create Ports
     os_port:
-      cloud:   "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:   "{{vnfd.tenant.name}}"
       state:   present
-      name:    "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.network}}"
-      network: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{item.network}}"
+      name:    "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.network}}"
+      network: "{{vnfd.tenant.name}}_{{item.network}}"
       security_groups:
-      - "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{item.network}}"
+      - "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{item.network}}"
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
     with_items:
@@ -103,7 +103,7 @@
   - name: Define Port Names
     set_fact:
       data:
-        port-name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.network}}"
+        port-name: "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.network}}"
     with_items: "{{vnfd.cluster.ports}}"
     register: portnames
 
@@ -113,13 +113,13 @@
 
   - name: Create Node
     os_server:
-      cloud:             "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:             "{{vnfd.tenant.name}}"
       state:             present
-      name:              "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}"
+      name:              "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}"
       availability_zone: "{{item.zone}}"
       flavor:            "{{item.flavor}}"
       image:             "{{item.image}}"
-      key_name:          "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_keypair"
+      key_name:          "{{vnfd.tenant.name}}_keypair"
       nics:              "{{ports}}"
       auto_ip:           no
       security_groups:
@@ -146,11 +146,11 @@
 
   - name: Create Volumes
     os_volume:
-      cloud:        "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:        "{{vnfd.tenant.name}}"
       state:        present
       volume_type:  "{{item.type}}"
       size:         "{{item.size}}"
-      display_name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name }}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.name}}"
+      display_name: "{{vnfd.tenant.name }}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.name}}"
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
     with_items:
@@ -171,10 +171,10 @@
 
   - name: Create Attachments
     os_server_volume:
-      cloud:  "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:  "{{vnfd.tenant.name}}"
       state:  present
-      server: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}"
-      volume: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.name}}"
+      server: "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}"
+      volume: "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{placement.node}}_{{item.name}}"
       device: "{{item.device}}"
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"

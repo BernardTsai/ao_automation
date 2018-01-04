@@ -60,10 +60,10 @@
 
   - name: Delete Attachments
     os_server_volume:
-      cloud:  "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:  "{{vnfd.tenant.name}}"
       state:  absent
-      server: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}"
-      volume: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}_{{item.name}}"
+      server: "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}"
+      volume: "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}_{{item.name}}"
       device: "{{item.device}}"
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
@@ -85,11 +85,11 @@
 
   - name: Delete Volumes
     os_volume:
-      cloud:        "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:        "{{vnfd.tenant.name}}"
       state:        absent
       volume_type:  "{{item.type}}"
       size:         "{{item.size}}"
-      display_name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name }}_{{vnfd.cluster.name}}_{{node}}_{{item.name}}"
+      display_name: "{{vnfd.tenant.name }}_{{vnfd.cluster.name}}_{{node}}_{{item.name}}"
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
     with_items:
@@ -113,7 +113,7 @@
   - name: Define Port Names
     set_fact:
       data:
-        port-name: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}_{{item.network}}"
+        port-name: "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}_{{item.network}}"
     with_items: "{{vnfd.cluster.ports}}"
     register: portnames
 
@@ -123,13 +123,13 @@
 
   - name: Delete Node
     os_server:
-      cloud:             "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:             "{{vnfd.tenant.name}}"
       state:             absent
-      name:              "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}"
+      name:              "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}"
       availability_zone: "{{item.zone}}"
       flavor:            "{{item.flavor}}"
       image:             "{{item.image}}"
-      key_name:          "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_keypair"
+      key_name:          "{{vnfd.tenant.name}}_keypair"
       nics:              "{{ports}}"
       auto_ip:           no
       security_groups:
@@ -156,12 +156,12 @@
 
   - name: Delete Ports
     os_port:
-      cloud:   "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      cloud:   "{{vnfd.tenant.name}}"
       state:   absent
-      name:    "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}_{{item.network}}"
-      network: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{item.network}}"
+      name:    "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{node}}_{{item.network}}"
+      network: "{{vnfd.tenant.name}}_{{item.network}}"
       security_groups:
-      - "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{item.network}}"
+      - "{{vnfd.tenant.name}}_{{vnfd.cluster.name}}_{{item.network}}"
     environment:
       OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
     with_items:

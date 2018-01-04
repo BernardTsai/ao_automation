@@ -52,9 +52,9 @@
     script: ./scripts/cleanup.sh
     environment:
       OS_AUTH_URL:     "{{cloud.auth.auth_url}}"
-      OS_USERNAME:     "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_administrator"
+      OS_USERNAME:     "{{vnfd.tenant.name}}_administrator"
       OS_PASSWORD:     "{{vnfd.tenant.password}}"
-      OS_PROJECT_NAME: "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
+      OS_PROJECT_NAME: "{{vnfd.tenant.name}}"
     register: result
 
   - name: Dislay Cleanup Log
