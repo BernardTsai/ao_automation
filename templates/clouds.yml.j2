@@ -7,7 +7,7 @@ clouds:
       project_name: "admin"
     interface:     "admin"
     endpoint-type: "admin"
-  {{vnfd.vnf.name}}_{{vnfd.tenant.name}}:
+  {{vnfd.tenant.name}}:
     auth:
       auth_url:     "{{cloud.auth.auth_url}}"
       username:     "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_administrator"
