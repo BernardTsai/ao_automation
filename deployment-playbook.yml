@@ -90,8 +90,8 @@
 
   - name: Add Key to Administrator Account
     os_keypair:
-      cloud:      "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}"
-      name:       "{{vnfd.vnf.name}}_{{vnfd.tenant.name}}_keypair"
+      cloud:      "{{vnfd.tenant.name}}"
+      name:       "{{vnfd.tenant.name}}_keypair"
       public_key: "{{vnfd.tenant.public_key}}"
       state:      present
     environment:
@@ -101,7 +101,7 @@
 
   - name: Create Security Groups
     os_security_group:
-      cloud: "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud: "{{ vnfd.tenant.name }}"
       name:  "{{ item }}"
       state: present
     environment:
@@ -127,7 +127,7 @@
 
   - name: Create External Security Group Rules
     os_security_group_rule:
-      cloud:            "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:            "{{ vnfd.tenant.name }}"
       security_group:   "{{ item.group}}"
       direction:        "{{ item.direction}}"
       protocol:         "{{ item.protocol}}"
@@ -156,7 +156,7 @@
 
   - name: Create Internal Security Group Rules
     os_security_group_rule:
-      cloud:            "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:            "{{ vnfd.tenant.name }}"
       direction:        "{{ item.direction}}"
       security_group:   "{{ item.group}}"
       protocol:         "{{ item.protocol}}"
@@ -187,7 +187,7 @@
 
   - name: Create Networks
     os_network:
-      cloud:    "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:    "{{ vnfd.tenant.name }}"
       name:     "{{ item.name }}"
       state:    present
     environment:
@@ -210,7 +210,7 @@
 
   - name: Create IPv4 Subnets
     os_subnet:
-      cloud:        "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:        "{{ vnfd.tenant.name }}"
       network_name: "{{ item.name }}"
       name:         "{{ item.name }}_ipv4"
       ip_version:   4
@@ -238,7 +238,7 @@
 
   - name: Create IPv6 Subnets
     os_subnet:
-      cloud:        "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:        "{{ vnfd.tenant.name }}"
       network_name: "{{ item.name }}"
       name:         "{{ item.name }}_ipv4"
       ip_version:   6
@@ -268,7 +268,7 @@
 
   - name: Create Ports
     os_port:
-      cloud:   "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:   "{{ vnfd.tenant.name }}"
       state:   present
       name:    "{{ item.name }}"
       network: "{{ item.network }}"
@@ -296,7 +296,7 @@
 
   - name: Create Nodes
     os_server:
-      cloud:             "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:             "{{ vnfd.tenant.name }}"
       state:             present
       name:              "{{ item.name }}"
       availability_zone: "{{ item.availability_zone }}"
@@ -327,7 +327,7 @@
 
   - name: Create Volumes
     os_volume:
-      cloud:        "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:        "{{ vnfd.tenant.name }}"
       state:        present
       volume_type:  "{{ item.volume_type }}"
       size:         "{{ item.size }}"
@@ -352,7 +352,7 @@
 
   - name: Create Attachments
     os_server_volume:
-      cloud:  "{{ vnfd.vnf.name }}_{{ vnfd.tenant.name }}"
+      cloud:  "{{ vnfd.tenant.name }}"
       state:  present
       server: "{{ item.server }}"
       volume: "{{ item.name }}"
