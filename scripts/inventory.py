@@ -27,7 +27,7 @@ class Tenant():
     def __init__(self, data):
         global password
         global cloud_name
-        
+
         self.id          = data["id"]
         self.name        = data["name"]
         self.description = data["description"]
@@ -224,13 +224,13 @@ def main():
         sys.exit(1)
 
     # Get project
-    data   = cloud.get_project(vnf_name + "_" + project_name)
+    data   = cloud.get_project(project_name)
 
     tenant = Tenant(data)
 
     # Context: tenant administration
     try:
-        cloud_config = os_client_config.OpenStackConfig().get_one_cloud( vnf_name + "_" + project_name )
+        cloud_config = os_client_config.OpenStackConfig().get_one_cloud(project_name)
 
         cloud = shade.OpenStackCloud(cloud_config=cloud_config)
     except Exception as exc:
