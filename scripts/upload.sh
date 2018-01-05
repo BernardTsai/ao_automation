@@ -9,8 +9,8 @@ if [ -z "$PROJECT" ]; then
     exit 1
 fi
 
-if [ -z "$FILEPATH" ]; then
-    echo "Environment variable FILEPATH is undefined"
+if [ -z "$LOCATION" ]; then
+    echo "Environment variable LOCATION is undefined"
     exit 1
 fi
 
@@ -35,7 +35,7 @@ echo $PROJECTID
 
 echo Upload inventory
 
-export FILE_PATH=$(echo "$FILEPATH" | sed 's/\//%2F/g')
+export FILE_PATH=$(echo "$LOCATION" | sed 's/\//%2F/g')
 export HEADER="Private-Token: $TOKEN"
 export DATA1="content=$CONTENT"
 export DATA2="commit_message=inventory"
