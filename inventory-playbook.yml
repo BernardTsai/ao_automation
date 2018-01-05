@@ -71,13 +71,13 @@
 
   - name: Get Timestamp
     set_fact:
-      timestamp: "{{ ansible_date_time.iso8601_micro }}"
+      timestamp: "{{ ansible_date_time.epoch }}"
 
   - name: Upload Inventory
     script: ./scripts/upload.sh
     environment:
       PROJECT:  "Applications/{{vnf}}"
-      FILEPATH: "inventory/{{token}}"
+      LOCATION: "inventory/{{timestamp}}"
       CONTENT:  "{{data.stdout}}"
     register: result
     changed_when: false
