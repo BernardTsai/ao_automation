@@ -27,7 +27,8 @@ echo Determine project
 
 export APPLICATION=$(echo "$PROJECT" | sed 's/\//%2F/g')
 export HEADER="Private-Token: $TOKEN"
-export PROJECTID=$(curl -s -H "$HEADER" "http://gitlab/api/v4/projects/$APPLICATION" | jq -r ".id")
+export PROJECTINFO=$(curl -s -H "$HEADER" "http://gitlab/api/v4/projects/$APPLICATION")
+export PROJECTID=$( echo $PROJECTINFO | python -c "import sys, json; print( json.load(sys.stdin)['id'] )" )
 
 echo $PROJECTID
 
@@ -43,6 +44,7 @@ export DATA3="branch=master"
 export RESULT=$(curl -s -d "$DATA1" -d "$DATA2" -d "$DATA3" -H "$HEADER" http://gitlab/api/v4/projects/$PROJECTID/repository/files/$FILE_PATH )
 
 echo $RESULT
+echo http://gitlab/api/v4/projects/$PROJECTID/repository/files/$FILE_PATH
 
 # ----- finished ---------------------------------------------------------------
 
