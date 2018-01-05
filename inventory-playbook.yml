@@ -73,13 +73,22 @@
     set_fact:
       timestamp: "{{ ansible_date_time.iso8601_micro }}"
 
+  - name: Obtain Inventory Data (may take some time)
+    script: ./scripts/inventory.py
+    environment:
+      OS_CLIENT_CONFIG_FILE: "/tmp/{{uuid}}.yml"
+      OS_CLOUD:              "{{vnfd.tenant.cloud}}"
+      OS_VNF_NAME:           "{{vnfd.vnf.name}}"
+      OS_PROJECT_NAME:       "{{vnfd.tenant.name}}"
+      OS_PASSWORD:           "{{ vnfd.tenant.password }}"
+    register: data
+    changed_when: false
+
   - name: Upload Inventory
-    uri:
-      url:    "https://api.github.com/repos/BernardTsai/applications/contents/{{vnf}}/inventory/{{timestamp}}.yaml"
-      method: "PUT"
-      body_format: "json"
-      validate_certs: no
-      status_code: "200, 201"
-      headers:
-        Authorization: "token {{token}}"
-      body: "{'message':'{{timestamp}} - Inventory of VNF {{vnf}}', 'content':'{{ data.stdout | b64encode }}'}"
+    script: ./scripts/upload.sh
+    environment:
+      PROJECT:  "Applications/{{vnf}}"
+      FILEPATH: "inventory/{{token}}"
+      CONTENT:  "{{data.stdout}}"
+    register: result
+    changed_when: false
