@@ -1,0 +1,24 @@
+---
+- name:         VNF Deployment
+  hosts:        gitlab
+  gather_facts: no
+  become:       no
+
+  # ----- VARS -----------------------------------------------------------------
+
+  vars:
+    vnf:         "example"
+
+# ----- TASKS ----------------------------------------------------------------
+
+  tasks:
+  - name: Create Task UUID
+    set_fact:
+      uuid: "{{ 1000000000 | random | to_uuid }}"
+
+  - name: Generate Artefacts
+    script: ./scripts/onboard.sh
+    environment:
+      TOKEN: "gitlab_token"
+      UUID:  "{{uuid}}"
+      VNF:   "{{vnf}}"
