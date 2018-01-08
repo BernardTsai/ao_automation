@@ -1,6 +1,6 @@
 ---
 - name:         VNF Deployment
-  hosts:        gitlab
+  hosts:        model
   gather_facts: no
   become:       no
 
